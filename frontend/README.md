@@ -32,7 +32,7 @@ Sigue estos pasos para configurar y ejecutar el frontend localmente:
 
 1.  **Clonar el Repositorio (si aún no lo has hecho):**
     ```bash
-    git clone <url-del-repositorio>
+    git clone https://github.com/jorgechvz/job-platform.git
     cd job-platform/frontend
     ```
 
