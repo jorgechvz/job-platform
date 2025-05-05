@@ -1,0 +1,304 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  passwordHash  String?
+  image         String?   @map("avatarUrl")
+  phone         String?
+  location      String?
+  about         String?
+  role          Role      @default(STUDENT)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  companyId       String? // ID de la empresa a la que pertenece el reclutador
+  company         Company?   @relation("CompanyRecruiters", fields: [companyId], references: [id])
+  postedJobOffers JobOffer[] @relation("PostedJobOffers") // Ofertas publicadas por este reclutador
+
+  jobApplications  JobApplication[] @relation("StudentApplications")
+  accounts         Account[]
+  sessions         Session[]
+  skills           Skill[]          @relation("UserSkills")
+  jobPreference    JobPreference?
+  educationEntries Education[]
+  certifications   Certification[]
+  workExperiences  WorkExperience[]
+  projects         Project[]
+  documents        Document[]
+
+  @@index([companyId])
+}
+
+model Skill {
+  id    String @id @default(cuid())
+  name  String @unique
+  users User[] @relation("UserSkills")
+
+  jobOffers JobOffer[] @relation("JobOfferSkills")
+}
+
+model JobPreference {
+  id                 String              @id @default(cuid())
+  userId             String              @unique
+  jobType            JobType?
+  locationPreference LocationPreference?
+  salaryExpectation  Int?
+  salaryCurrency     String?             @default("PEN")
+  availability       Availability?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Education {
+  id          String    @id @default(cuid())
+  userId      String
+  institution String
+  degree      String // e.g., "Ingeniería de Sistemas", "Bachillerato"
+  startDate   DateTime?
+  endDate     DateTime? // Nullable for ongoing education
+  description String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Certification {
+  id                  String    @id @default(cuid())
+  userId              String
+  name                String
+  issuingOrganization String
+  issueDate           DateTime?
+  expirationDate      DateTime? // Optional
+  credentialId        String?
+  credentialUrl       String? // Optional
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model WorkExperience {
+  id          String    @id @default(cuid())
+  userId      String
+  company     String
+  title       String // Job title
+  startDate   DateTime?
+  endDate     DateTime? // Nullable for current job
+  description String?   @db.Text
+  location    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Project {
+  id           String    @id @default(cuid())
+  userId       String
+  name         String
+  type         String? // e.g., "Proyecto Académico", "Personal"
+  startDate    DateTime?
+  endDate      DateTime?
+  description  String?   @db.Text
+  technologies String[] // List of technologies used
+  projectUrl   String? // Optional link to live project or repo
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Document {
+  id         String       @id @default(cuid())
+  userId     String
+  name       String // e.g., "CV_Estudiante_Usuario_2025.pdf"
+  url        String
+  type       DocumentType
+  uploadedAt DateTime     @default(now())
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobApplications JobApplication[]
+
+  @@index([userId])
+}
+
+/**
+ */
+
+model Company {
+  id           String   @id @default(cuid())
+  name         String
+  industry     String?
+  location     String? // e.g., "Ciudad de Lima"
+  size         String? // e.g., "50-200 empleados"
+  contactEmail String?  @unique
+  websiteUrl   String?
+  logoUrl      String?
+  description  String?  @db.Text
+  isVerified   Boolean  @default(false) // Para la insignia "Verificada"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  recruiters User[]     @relation("CompanyRecruiters") // Reclutadores asociados a esta empresa
+  jobOffers  JobOffer[] // Ofertas publicadas por esta empresa
+}
+
+model JobOffer {
+  id             String         @id @default(cuid())
+  title          String // e.g., "Desarrollador Backend"
+  description    String         @db.Text
+  companyId      String
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade) // Empresa que publica
+  postedById     String? // Opcional: Reclutador específico que la publicó
+  postedBy       User?          @relation("PostedJobOffers", fields: [postedById], references: [id], onDelete: SetNull) // Relación con el reclutador
+  jobType        JobType // Full-time, Part-time, etc.
+  location       String // e.g., "Ciudad de Lima"
+  isRemote       Boolean        @default(false)
+  salaryMin      Int? // e.g., 2500
+  salaryMax      Int? // e.g., 3500
+  salaryCurrency String         @default("PEN")
+  status         JobOfferStatus @default(ACTIVE) // Estado de la oferta (Activo, Pausado, Cerrado)
+  isFeatured     Boolean        @default(false) // Para "Destacado"
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  requiredSkills Skill[]          @relation("JobOfferSkills") // Habilidades requeridas (muchos a muchos)
+  applications   JobApplication[] // Postulaciones recibidas para esta oferta
+}
+
+model JobApplication {
+  id               String            @id @default(cuid())
+  jobOfferId       String
+  jobOffer         JobOffer          @relation(fields: [jobOfferId], references: [id], onDelete: Cascade)
+  studentId        String
+  student          User              @relation("StudentApplications", fields: [studentId], references: [id], onDelete: Cascade)
+  status           ApplicationStatus @default(SUBMITTED) // Estado de la postulación
+  appliedAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  coverLetter      String?           @db.Text // Carta de presentación opcional
+  resumeDocumentId String?
+  resumeDocument   Document?         @relation(fields: [resumeDocumentId], references: [id], onDelete: SetNull)
+
+  @@unique([jobOfferId, studentId]) // Un estudiante solo puede postular una vez a la misma oferta
+  @@index([jobOfferId])
+  @@index([studentId])
+}
+
+/**
+ * ENUMS
+ */
+
+enum Role {
+  STUDENT
+  RECRUITER
+  ADMIN
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  INTERNSHIP
+  FREELANCE
+}
+
+enum LocationPreference {
+  ON_SITE
+  REMOTE
+  HYBRID
+  ANY
+}
+
+enum Availability {
+  IMMEDIATE
+  TWO_WEEKS
+  ONE_MONTH
+  NEGOTIABLE
+}
+
+enum DocumentType {
+  CV
+  CERTIFICATE
+  PORTFOLIO
+  OTHER
+}
+
+enum JobOfferStatus {
+  DRAFT // Borrador, no visible para estudiantes
+  ACTIVE // Publicada y visible
+  PAUSED // Temporalmente no visible/aceptando postulaciones
+  CLOSED // Ya no acepta postulaciones
+}
+
+// Nuevo Enum para el estado de la postulación
+enum ApplicationStatus {
+  SUBMITTED // Postulación enviada
+  REVIEWED // CV/Postulación revisada por el reclutador
+  INTERVIEWING // En proceso de entrevista
+  OFFERED // Oferta de trabajo realizada
+  REJECTED // Postulación rechazada
+  WITHDRAWN // Postulación retirada por el estudiante
+}
